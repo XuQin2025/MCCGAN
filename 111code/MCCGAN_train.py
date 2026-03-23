@@ -30,7 +30,7 @@ from torchvision.utils import save_image, make_grid
 from tqdm import tqdm
 
 
-# ===================== Config（多维条件向量） =====================
+# ===================== Config（condition vector） =====================
 @dataclass
 class Config:
     # root
@@ -44,12 +44,12 @@ class Config:
     NGF: int = 64
     NDF: int = 64
 
-    # 条件维度（通过 keys 决定，不需手改）
+    # Conditional dimensions (determined by keys, no manual modification required)
     COND_KEYS: Tuple[str, ...] = ("A", "T", "Temp", "Time")
-    # 各条件取值范围（用于归一化到 [0,1]）
+    # The range of values ​​for each condition (used for normalization [0,1]）
     RANGES: Dict[str, Tuple[float, float]] = None
 
-    # 训练超参
+    # Training hyperparameters
     BATCH_SIZE: int = 16
     EPOCHS: int = 100
     LR_G: float = 2e-4
@@ -58,20 +58,20 @@ class Config:
     NUM_WORKERS: int = 4
     USE_FLIP_AUG: bool = True
 
-    # 损失权重
+    # Loss weights
     LAMBDA_COND_D: float = 1.0
     LAMBDA_COND_G: float = 1.0
     LAMBDA_PALETTE: float = 5.0
     LAMBDA_R1: float = 0.0
 
-    # 日志 & 保存
+    # Logs & Saving
     SAMPLE_EVERY: int = 1
     SAVE_EVERY: int = 5
 
     DEVICE: str = "cuda" if torch.cuda.is_available() else "cpu"
 
     def __post_init__(self):
-        # Default；需要扩展维度时在此添加
+        # Default；Add here when you need to expand dimensions
         if self.RANGES is None:
             self.RANGES = {
                 "A":    (6.0, 9.0),    # A
@@ -85,7 +85,7 @@ class Config:
         return len(self.COND_KEYS)
 
     def normalize_cond(self, cond_dict: Dict[str, float]) -> List[float]:
-        """将条件 dict 中的值按 RANGES 归一化，输出与 COND_KEYS 顺序一致的向量"""
+        """Normalized by RANGES, the output vector follows the same order as COND_KEYS."""
         out = []
         for k in self.COND_KEYS:
             lo, hi = self.RANGES[k]
@@ -103,12 +103,13 @@ def set_seed(seed=42):
 
 def parse_folder_to_cond(name: str) -> Dict[str, float]:
     """
-    解析形如 ATxy_TTT_HH 的子目录名 -> 条件字典 {"A":x, "T":y, "Temp":TTT, "Time":HH}
+    Parse subdirectory names of the form ATxy_TTT_HH -> Condition dictionary
+    {"A":x, "T":y, "Temp":TTT, "Time":HH}
     Like AT69_390_12 -> A=6, T=9, Temp=390, Time=12
     """
     m = re.match(r"^AT(\d)(\d)_(\d{3})_(\d+)$", name.strip())
     if not m:
-        raise ValueError(f"子目录名应为 ATxy_TTT_HH，例如 AT69_390_12，当前：{name}")
+        raise ValueError(f"The subdirectory name should be ATxy_TTT_HH, for example, AT69_390_12, currently：{name}")
     A = int(m.group(1))
     T = int(m.group(2))
     Temp = int(m.group(3))
@@ -139,7 +140,7 @@ class AlloyDatasetMCV(Dataset):
                 if p.is_file() and p.suffix.lower() in exts:
                     self.samples.append((p, cond_norm))
         if not self.samples:
-            raise RuntimeError(f"{self.root} 下未找到训练图片，或子目录名不符合 ATxy_TTT_HH")
+            raise RuntimeError(f"{self.root} Training images not found, or subdirectory name does not match. ATxy_TTT_HH")
 
         self.base_transform = transforms.ToTensor()
 
@@ -147,7 +148,7 @@ class AlloyDatasetMCV(Dataset):
 
     def __getitem__(self, idx):
         path, cond = self.samples[idx]
-        img = Image.open(path)  # 不改变颜色/模式
+        img = Image.open(path)  # Do not change color/mode
         w,h = img.size
 
         if (w, h) == (CFG.IMG_SIZE, CFG.IMG_SIZE):
@@ -157,7 +158,7 @@ class AlloyDatasetMCV(Dataset):
             T = (h - CFG.IMG_SIZE)//2
             img = img.crop((L, T, L+CFG.IMG_SIZE, T+CFG.IMG_SIZE))
         else:
-            raise ValueError(f"图像尺寸小于 {CFG.IMG_SIZE}: {path} -> {img.size}")
+            raise ValueError(f"Image size smaller {CFG.IMG_SIZE}: {path} -> {img.size}")
 
         if self.use_flip_aug:
             if random.random() < 0.5: img = img.transpose(Image.FLIP_LEFT_RIGHT)
@@ -282,7 +283,7 @@ def sample_grid(G, epoch, data_root: Path, out_dir: Path, device: str):
 
 # ===================== Train =====================
 def train(args):
-    # 覆盖运行期配置
+    # Override runtime configuration
     CFG.DATA_ROOT = args.data_root
     CFG.OUTPUT_ROOT = args.output_root
     CFG.EPOCHS = args.epochs
@@ -296,7 +297,7 @@ def train(args):
     dataset = AlloyDatasetMCV(CFG.DATA_ROOT, CFG.IMG_SIZE, use_flip_aug=CFG.USE_FLIP_AUG)
     loader = DataLoader(dataset, batch_size=CFG.BATCH_SIZE, shuffle=True,
                         num_workers=CFG.NUM_WORKERS, pin_memory=True, drop_last=True)
-    print(f"数据量: {len(dataset)}，每轮迭代: {len(loader)} 批，IMG_SIZE={CFG.IMG_SIZE}，条件维度={CFG.COND_DIM}")
+    print(f"Data: {len(dataset)}，Each iteration: {len(loader)} batch，IMG_SIZE={CFG.IMG_SIZE}，Conditional dimension={CFG.COND_DIM}")
 
     G = Generator(CFG.IMG_SIZE, z_dim=CFG.Z_DIM, cond_dim=CFG.COND_DIM, ngf=CFG.NGF, out_ch=CFG.IN_CHANNELS).to(CFG.DEVICE)
     D = Discriminator(CFG.IMG_SIZE, in_ch=CFG.IN_CHANNELS, cond_dim=CFG.COND_DIM, ndf=CFG.NDF).to(CFG.DEVICE)
