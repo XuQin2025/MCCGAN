@@ -29,7 +29,7 @@ class CFG:
     Z_DIM: int = 128
     NGF: int = 64
 
-    # 条件键与归一化范围（与训练一致）
+    # Conditional keys and normalization range (consistent with training)
     COND_KEYS: Tuple[str, ...] = ("A", "T", "Temp", "Time")
     RANGES: Dict[str, Tuple[float, float]] = None
 
@@ -50,7 +50,7 @@ class CFG:
         return len(self.COND_KEYS)
 
     def clamp_and_normalize(self, cond_raw: Dict[str, float]) -> List[float]:
-        """把原始条件夹紧到训练范围并归一化到 [0,1]"""
+        """Fit the original conditions into the training range and normalize [0,1]"""
         out = []
         for k in self.COND_KEYS:
             lo, hi = self.RANGES[k]
@@ -62,7 +62,7 @@ class CFG:
 CFG = CFG()
 
 
-# ============ 生成器（与训练保持一致） ============
+# ============ Generator (consistent with training) ============
 class ResBlockUp(nn.Module):
     def __init__(self, in_ch, out_ch):
         super().__init__()
@@ -111,15 +111,15 @@ class Generator(nn.Module):
 @torch.no_grad()
 def generate_for_combo(G: Generator, combo_name: str, cond_raw: Dict[str, float],
                        n: int, seed_base: int, out_root: Path):
-    """为单个条件组合生成 n 张，保存到子目录 combo_name/"""
+    """Generate n images for a single condition combination and save them to a subdirectory combo_name/"""
     out_dir = out_root / combo_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # 一次性 batch 生成 n 张
+    # Generate n images in one batch
     cond_vec = CFG.clamp_and_normalize(cond_raw)
     cond = torch.tensor([cond_vec]*n, dtype=torch.float32, device=CFG.DEVICE)
 
-    # 为了多样性，给每张图不同的 seed
+    # For diversity, each image is given a different seed
     z_list = []
     for i in range(n):
         s = seed_base + i + 1
@@ -129,7 +129,7 @@ def generate_for_combo(G: Generator, combo_name: str, cond_raw: Dict[str, float]
 
     fake = G(z, cond)  # [n,3,H,W]
 
-    # 保存
+    # SAVE
     for i in range(n):
         fname = f"{combo_name}_{i+1:02d}.png"
         save_image(fake[i], str(out_dir / fname))
@@ -138,14 +138,14 @@ def generate_for_combo(G: Generator, combo_name: str, cond_raw: Dict[str, float]
 
 
 def main():
-    parser = argparse.ArgumentParser(description="MCCGAN 批量推理（12 组条件各 10 张）")
+    parser = argparse.ArgumentParser(description="MCCGAN Batch reasoning (12 sets of conditions, 10 sheets each)")
     parser.add_argument("--weights", type=str, default="runs/MCCGAN/weights/G_final.pt")
     parser.add_argument("--out_dir", type=str, default="runs/MCCGAN/infer_12x100")
     parser.add_argument("--n_per", type=int, default=10, help="generated number per combination")
     parser.add_argument("--seed_base", type=int, default=20250919, help="Basic random seed")
     args = parser.parse_args()
 
-    # 载入生成器
+    # Load generator
     G = Generator(CFG.IMG_SIZE, z_dim=CFG.Z_DIM, cond_dim=CFG.COND_DIM,
                   ngf=CFG.NGF, out_ch=CFG.IN_CHANNELS).to(CFG.DEVICE).eval()
     state = torch.load(args.weights, map_location=CFG.DEVICE)
@@ -173,10 +173,10 @@ def main():
     # Generated
     for idx, (name, cond) in enumerate(combos, start=1):
         seed_base = args.seed_base + idx * 1000
-        print(f"[{idx:02d}/{len(combos)}] 生成 {name} × {args.n_per} 张 …")
+        print(f"[{idx:02d}/{len(combos)}] generate {name} × {args.n_per}  …")
         generate_for_combo(G, name, cond, n=args.n_per, seed_base=seed_base, out_root=out_root)
 
-    print(f"完成：共 {len(combos)*args.n_per} 张，输出目录：{out_root.resolve()}")
+    print(f"Finish：all {len(combos)*args.n_per} ，Output directory：{out_root.resolve()}")
 
 
 if __name__ == "__main__":
