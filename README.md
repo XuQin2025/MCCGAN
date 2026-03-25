@@ -193,6 +193,6 @@ python MCCGAN\_infer.py --weights runs/MCCGAN/weights/G\_final.pt --out\_dir run
 If you use this code in your research, please cite our paper:
 
 
-
-A multidimensional continuous conditional generative adversarial network to link composition-process-microstructure-properties in Mg alloys
+Please cite this article as: Xu Qin , Qinghang Wang , Jianchuan Yan , Biaobiao Yang , Yuhui Zhang , Bin Jiang , Javier LLorca , A multidimensional continuous conditional generative
+adversarial network to link composition-process-microstructure-properties in Mg alloys, Acta Materialia (2026), doi: https://doi.org/10.1016/j.actamat.2026.122159
 
